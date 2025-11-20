@@ -1,0 +1,103 @@
+
+
+## Docker Compose File
+
+This will install node js and allow you to use claude code in a docker container on unraid use the compose manager plugin.
+
+
+> **Use at your own risk**
+> This will give AI access to whatever files you pass to the container (if using filesystem mcp).
+```yaml
+
+services:
+  claude-code:
+    image: node:20-alpine
+    container_name: claude-code-simple
+    restart: unless-stopped
+    
+    # Keep container running and install Claude Code on startup
+    command: sh -c "apk add --no-cache bash && npm install -g @anthropic-ai/claude-code && tail -f /dev/null"
+    
+    # Volume mappings for Unraid access
+    volumes:
+      # Core Unraid directories - put whatever you want here
+      - /mnt/user/appdata:/appdata:rw
+      - /mnt/user/downloads:/downloads:rw
+      - /mnt/user/media:/media:rw
+      
+      # Workspace for your projects
+      - /mnt/user/claude-workspace:/workspace:rw
+      
+      # Docker socket access
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    
+    # Working directory
+    working_dir: /workspace
+    
+    # Run as root to avoid permission issues
+    user: root
+    
+    # Environment
+    environment:
+      - NODE_ENV=development
+      - SHELL=/bin/bash
+    
+    # Labels
+    labels:
+      - "com.unraid.docker.managed=composeman"
+      - "com.unraid.docker.icon=https://nodejs.org/static/images/logo.svg"
+```
+## Setup Steps
+
+### 1. Deploy the Stack
+
+1. Go to **Docker Compose Manager** in Unraid
+2. Create a new stack called "claude-code"
+3. Paste the compose file above
+4. Click **"Compose Up"**
+
+### 2. Access the Container
+
+SSH into your server and run:
+
+```bash
+docker exec -it claude-code-simple sh
+```
+
+### 3. Create Wrapper Script
+
+```bash
+echo '#!/bin/bash' > /usr/local/bin/claude-code
+echo 'node /usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js "$@"' >> /usr/local/bin/claude-code
+chmod +x /usr/local/bin/claude-code
+```
+
+### 4. Start Claude Code
+
+```bash
+claude-code
+```
+
+*Normally you just run `claude` for claude code, but its aliased `claude-code` in our wrapper script*
+## Running Claude Code After Container Restart
+
+If the container gets stopped/restarted:
+
+1. **Access the container**: `docker exec -it claude-code-simple sh`
+2. **Create wrapper script** (run step 3 above)
+3. **Start Claude Code**: `claude-code`
+
+## Access to the filesystem
+
+to add the filesystem mcp server to give claude access to your files, you can run: 
+
+```yaml
+claude-code mcp add filesystem -s user -- npx -y @modelcontextprotocol/server-filesystem /appdata /downloads /media
+```
+
+or whatever directories you want it to have access too
+## Notes
+
+- Bash and Claude Code are automatically installed on container startup
+- The wrapper script needs to be recreated after each container restart
+- All your Unraid directories are accessible within the but for Claude Code to actually access them, you'll need to use the File System MCP. 
